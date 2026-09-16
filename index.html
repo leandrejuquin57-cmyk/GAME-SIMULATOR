@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lélé Games 🎮</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#0b1020;color:white}
+header{padding:28px 18px;text-align:center;background:linear-gradient(135deg,#6c3cff,#00b8ff)}
+header h1{margin:0;font-size:clamp(34px,8vw,64px)}
+header p{margin:8px 0 0;font-size:18px}
+main{max-width:1000px;margin:auto;padding:28px 18px}
+.games{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px}
+.card{background:#151c33;border:1px solid #293455;border-radius:20px;padding:22px;box-shadow:0 10px 30px #0005}
+.card .emoji{font-size:55px}
+.card h2{margin:10px 0 6px}
+.card p{color:#b8c2df;min-height:42px}
+button{border:0;border-radius:12px;padding:13px 18px;font-size:16px;font-weight:bold;cursor:pointer;background:#6c3cff;color:white}
+button:hover{filter:brightness(1.15)}
+#gameScreen{display:none;text-align:center}
+.board{display:grid;grid-template-columns:repeat(3,90px);gap:8px;justify-content:center;margin:25px auto}
+.cell{width:90px;height:90px;background:#151c33;border:2px solid #39466d;border-radius:14px;font-size:48px;color:white}
+.status{font-size:21px;margin:15px}
+.small{color:#9eabc9}
+.back{background:#26314f;margin-bottom:15px}
+footer{text-align:center;color:#7f8ba8;padding:30px}
+</style>
+</head>
+<body>
+<header>
+  <h1>🎮 LÉLÉ GAMES</h1>
+  <p>Mes mini-jeux — clique, joue et amuse-toi !</p>
+</header>
+
+<main id="home">
+  <h2>🕹️ Mes mini-jeux</h2>
+  <div class="games">
+    <div class="card">
+      <div class="emoji">❌⭕</div>
+      <h2>Morpion</h2>
+      <p>Affronte un ami ou joue contre le bot.</p>
+      <button onclick="openGame()">▶ JOUER</button>
+    </div>
+    <div class="card">
+      <div class="emoji">🚀</div>
+      <h2>Bientôt disponible</h2>
+      <p>Un nouveau mini-jeu créé avec l'IA arrivera ici.</p>
+      <button disabled style="opacity:.45;cursor:not-allowed">🔒 BIENTÔT</button>
+    </div>
+  </div>
+</main>
+
+<section id="gameScreen">
+  <button class="back" onclick="goHome()">← Retour aux jeux</button>
+  <h2>❌⭕ MORPION</h2>
+  <p class="small">Choisis ton mode de jeu</p>
+  <button onclick="setMode(false)">👥 2 JOUEURS</button>
+  <button onclick="setMode(true)">🤖 CONTRE LE BOT</button>
+  <div class="status" id="status">Choisis un mode pour commencer</div>
+  <div class="board" id="board"></div>
+  <button onclick="resetGame()">🔄 Nouvelle manche</button>
+</section>
+
+<footer>© Lélé Games — Des mini-jeux faits pour jouer directement dans le navigateur.</footer>
+
+<script>
+let board = Array(9).fill("");
+let turn = "X";
+let botMode = false;
+let active = false;
+const boardEl = document.getElementById("board");
+const statusEl = document.getElementById("status");
+
+function openGame(){
+  document.getElementById("home").style.display="none";
+  document.getElementById("gameScreen").style.display="block";
+  resetGame();
+}
+function goHome(){
+  document.getElementById("gameScreen").style.display="none";
+  document.getElementById("home").style.display="block";
+}
+function setMode(bot){
+  botMode=bot;
+  resetGame();
+}
+function resetGame(){
+  board=Array(9).fill("");
+  turn="X";
+  active=true;
+  statusEl.textContent=botMode ? "À toi ! Tu es ❌" : "Joueur ❌, à toi !";
+  render();
+}
+function render(){
+  boardEl.innerHTML="";
+  board.forEach((v,i)=>{
+    const b=document.createElement("button");
+    b.className="cell";
+    b.textContent=v;
+    b.onclick=()=>play(i);
+    boardEl.appendChild(b);
+  });
+}
+function play(i){
+  if(!active || board[i]) return;
+  if(botMode && turn==="O") return;
+  board[i]=turn;
+  finishOrContinue();
+  if(active && botMode && turn==="O"){
+    setTimeout(botPlay,300);
+  }
+}
+function finishOrContinue(){
+  const winner=getWinner();
+  if(winner){
+    active=false;
+    statusEl.textContent=winner==="X" ? "🎉 ❌ gagne !" : "🎉 ⭕ gagne !";
+    render(); return;
+  }
+  if(board.every(Boolean)){
+    active=false;
+    statusEl.textContent="🤝 Match nul !";
+    render(); return;
+  }
+  turn=turn==="X"?"O":"X";
+  statusEl.textContent=botMode
+    ? (turn==="X" ? "À toi ! Tu es ❌" : "🤖 Le bot réfléchit...")
+    : "Joueur "+turn+", à toi !";
+  render();
+}
+function getWinner(){
+  const lines=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+  for(const [a,b,c] of lines)
+    if(board[a] && board[a]===board[b] && board[a]===board[c]) return board[a];
+  return null;
+}
+function botPlay(){
+  if(!active || turn!=="O") return;
+  let choices=board.map((v,i)=>v?null:i).filter(i=>i!==null);
+  // Le bot gagne s'il peut, sinon bloque le joueur, sinon joue au centre ou au hasard.
+  let move=findTactical("O") ?? findTactical("X");
+  if(move===null && board[4]==="") move=4;
+  if(move===null){
+    const corners=[0,2,6,8].filter(i=>!board[i]);
+    move=corners.length?corners[Math.floor(Math.random()*corners.length)]:choices[Math.floor(Math.random()*choices.length)];
+  }
+  board[move]="O";
+  finishOrContinue();
+}
+function findTactical(player){
+  const lines=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+  for(const [a,b,c] of lines){
+    const vals=[board[a],board[b],board[c]];
+    if(vals.filter(x=>x===player).length===2 && vals.includes(""))
+      return [a,b,c][vals.indexOf("")];
+  }
+  return null;
+}
+render();
+</script>
+</body>
+</html>
